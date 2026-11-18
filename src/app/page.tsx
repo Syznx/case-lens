@@ -91,8 +91,8 @@ export default function CaseLensApp() {
         const filtered =
           court && court !== "all"
             ? MOCK_CASES.filter((c) =>
-                c.court.toLowerCase().includes(court.toLowerCase())
-              )
+              c.court.toLowerCase().includes(court.toLowerCase())
+            )
             : MOCK_CASES;
         const data = filtered.length > 0 ? filtered : MOCK_CASES;
         setCases(data);
