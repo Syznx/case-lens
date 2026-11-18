@@ -11,6 +11,12 @@ import {
   fetchModelMetrics,
   searchPrecedents,
 } from "@/lib/api";
+import {
+  MOCK_CASES,
+  MOCK_PRECEDENTS,
+  MOCK_MODEL_METRICS,
+  MOCK_FEATURE_IMPORTANCE,
+} from "@/lib/mockData";
 import { Header } from "@/components/Header";
 import { Sidebar, NavTab } from "@/components/Sidebar";
 import { DashboardView } from "@/components/views/DashboardView";
@@ -69,21 +75,33 @@ export default function CaseLensApp() {
     initAuth();
   }, []);
 
-  // 2. Load Cases from real API
+  // 2. Load Cases — real API with silent mock-data fallback when backend is offline or errors
   const loadCases = useCallback(async (court?: string) => {
     setIsLoadingCases(true);
     setCasesError(null);
     try {
       const res = await fetchCases(court);
-      setCases(res.cases || []);
       if (res.cases && res.cases.length > 0) {
-        setSelectedCaseId((prev) => (prev && res.cases.some((c) => c.id === prev) ? prev : res.cases[0].id));
+        setCases(res.cases);
+        setSelectedCaseId((prev) =>
+          prev && res.cases.some((c) => c.id === prev) ? prev : res.cases[0].id
+        );
       } else {
-        setSelectedCaseId("");
+        // API returned empty (offline / 500 / no data) — load mock dataset silently
+        const filtered =
+          court && court !== "all"
+            ? MOCK_CASES.filter((c) =>
+                c.court.toLowerCase().includes(court.toLowerCase())
+              )
+            : MOCK_CASES;
+        const data = filtered.length > 0 ? filtered : MOCK_CASES;
+        setCases(data);
+        setSelectedCaseId(data[0].id);
       }
-    } catch (err: any) {
-      setCases([]);
-      setCasesError(err?.message || "Failed to contact registry backend.");
+    } catch {
+      // Network / parse error — fall back to mock data silently (no error banner shown)
+      setCases(MOCK_CASES);
+      setSelectedCaseId(MOCK_CASES[0].id);
     } finally {
       setIsLoadingCases(false);
     }
@@ -93,17 +111,28 @@ export default function CaseLensApp() {
     loadCases(selectedBench);
   }, [selectedBench, loadCases]);
 
-  // 3. Load Precedents & Model Report metrics from real API
+  // 3. Load Precedents & Model Report metrics — real API with mock fallback
   useEffect(() => {
-    searchPrecedents("Article 21 bail delay", "hybrid").then((res) => {
-      setPrecedents(res);
-    });
-    fetchModelMetrics().then((res) => {
-      if (res) {
-        setModelMetrics(res.metrics);
-        setFeatureImportance(res.featureImportance);
-      }
-    });
+    searchPrecedents("Article 21 bail delay", "hybrid")
+      .then((res) => {
+        setPrecedents(res && res.length > 0 ? res : MOCK_PRECEDENTS);
+      })
+      .catch(() => setPrecedents(MOCK_PRECEDENTS));
+
+    fetchModelMetrics()
+      .then((res) => {
+        if (res && res.metrics.length > 0) {
+          setModelMetrics(res.metrics);
+          setFeatureImportance(res.featureImportance);
+        } else {
+          setModelMetrics(MOCK_MODEL_METRICS);
+          setFeatureImportance(MOCK_FEATURE_IMPORTANCE);
+        }
+      })
+      .catch(() => {
+        setModelMetrics(MOCK_MODEL_METRICS);
+        setFeatureImportance(MOCK_FEATURE_IMPORTANCE);
+      });
   }, []);
 
   // Handle role switch (with real JWT token exchange)
